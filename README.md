@@ -4,9 +4,12 @@ A browser-based 3D FPS zombie survival game built with Three.js.
 
 ## Play
 
-Open `index.html` in a browser, or play on [GitHub Pages](https://khannudomvirak.github.io/Zombie-Shooter/).
+Open `index.html` in a desktop browser, or `mobile.html` on a phone.
+Play on [GitHub Pages](https://khannudomvirak.github.io/Zombie-Shooter/).
 
 ## Controls
+
+### Desktop (`index.html`)
 
 | Key | Action |
 |-----|--------|
@@ -17,6 +20,17 @@ Open `index.html` in a browser, or play on [GitHub Pages](https://khannudomvirak
 | 1-4 / Scroll | Switch weapon |
 | R | Reload |
 | Escape | Pause |
+
+### Mobile (`mobile.html`)
+
+| Control | Action |
+|---------|--------|
+| Left stick (drag) | Move |
+| Right side (drag) | Look around |
+| FIRE button | Shoot |
+| 1-4 buttons | Switch weapon |
+| RELOAD button | Reload |
+| SPRINT button | Toggle sprint |
 
 ## Weapons
 
