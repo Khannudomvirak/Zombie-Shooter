@@ -27,7 +27,23 @@ Open `index.html` in a browser, or play on [GitHub Pages](https://khannudomvirak
 | Shotgun | 2×3 pellets | Semi | 4 | 16 |
 | Sniper | 5 | Semi | 3 | 12 |
 
-Zombies drop ammo and health pickups on death.
+## Zombies
+
+Five visual types with varied stats — normal, fat (high HP), tall (ranged), runner (fast), tank (very high HP, slow). Zombies chase the player, deal contact damage, and scale in number each wave.
+
+## Supply Drops
+
+Each zombie drops one supply on death:
+
+| Drop | Chance | Amount | Visual |
+|------|--------|--------|--------|
+| Pistol Ammo | 20-40% | +12 | Silver box |
+| SMG Ammo | 20-40% | +25 | Green box |
+| Shotgun Ammo | 10-15% | +6 | Orange box |
+| Sniper Ammo | 10-15% | +3 | Purple box |
+| Health | 20% fixed | +4 HP | Green cross |
+
+Ammo pickups fill the magazine first, then overflow to reserve.
 
 ## Difficulty
 
