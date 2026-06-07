@@ -713,17 +713,25 @@ class Zombie {
 function getW() { return weapons[currentWeapon]; }
 
 function firePellet(spread) {
-    const dir = new THREE.Vector3((Math.random()-0.5)*spread, (Math.random()-0.5)*spread, -1);
-    dir.applyQuaternion(camera.quaternion);
-    const r = new THREE.Raycaster(camera.position, dir);
-    const hits = r.intersectObjects(obstacles.concat(zombies.map(z=>z.group)), true);
-    if (hits.length>0) {
-        let obj = hits[0].object;
-        while (obj.parent && !zombies.includes(obj.parent) && obj.parent!==scene) obj=obj.parent;
-        if (obj.parent && zombies.includes(obj.parent)) {
-            obj.parent.takeDamage(getW().damage);
-            return true;
+    const r = new THREE.Raycaster();
+    const off = new THREE.Vector2((Math.random()-0.5)*spread*2, (Math.random()-0.5)*spread*2);
+    r.setFromCamera(off, camera);
+    const zombieMeshes = [];
+    zombies.forEach(z => {
+        if (z.alive) {
+            z.group.children.forEach(child => {
+                if (child.isMesh && child !== z.healthBar && child !== z.healthBarBg) zombieMeshes.push(child);
+            });
         }
+    });
+    const hits = r.intersectObjects(zombieMeshes);
+    if (hits.length>0) {
+        const hitMesh = hits[0].object;
+        let hitZombie = null;
+        for (const z of zombies) {
+            if (z.group.children.includes(hitMesh)) { hitZombie = z; break; }
+        }
+        if (hitZombie) { hitZombie.takeDamage(getW().damage); return true; }
     }
     return false;
 }
@@ -847,9 +855,6 @@ function startGame() {
     document.getElementById('damage-overlay').style.opacity='0';
     document.querySelectorAll('.w-btn').forEach((b,i)=>b.classList.toggle('active',i===0));
     updateHUD(); startWave();
-    // Debug: flash background red briefly
-    scene.background.setHex(0xff0000);
-    setTimeout(() => scene.background.setHex(0x0a0a1a), 200);
 }
 
 function endGame() {
@@ -1004,7 +1009,7 @@ function animate() {
         state.direction.z=Number(keys['w']||keys['arrowup'])-Number(keys['s']||keys['arrowdown']);
         state.direction.x=Number(keys['a']||keys['arrowleft'])-Number(keys['d']||keys['arrowright']);
         if (joystickActive) {
-            state.direction.z=-joystickVec.y;
+            state.direction.z=joystickVec.y;
             state.direction.x=joystickVec.x;
         }
         if (state.direction.length()>0) state.direction.normalize();
