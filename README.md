@@ -47,4 +47,10 @@ Ammo pickups fill the magazine first, then overflow to reserve.
 
 ## Difficulty
 
-Three modes — Easy, Normal, Hard — affecting zombie damage, count, and spawn rate.
+| Setting | Easy | Normal | Hard |
+|---------|------|--------|------|
+| Zombie Damage | 4 | 8 | 12 |
+| Wave Base Zombies | 2 | 3 | 5 |
+| Wave Growth Multiplier | 1.5× | 2× | 3× |
+| Spawn Interval | 800ms | 600ms | 400ms |
+| Max Zombies Per Wave | 20 | 30 | 45 |
