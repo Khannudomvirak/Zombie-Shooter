@@ -356,7 +356,9 @@ moonLight.shadow.camera.right = 30;
 moonLight.shadow.camera.top = 30;
 moonLight.shadow.camera.bottom = -30;
 scene.add(moonLight);
-scene.add(new THREE.DirectionalLight(0x444488, 0.2).position.set(0, 10, 20));
+const fillLight = new THREE.DirectionalLight(0x444488, 0.2);
+fillLight.position.set(0, 10, 20);
+scene.add(fillLight);
 
 const pl1 = new THREE.PointLight(0xff4400, 3, 20); pl1.position.set(-15, 3, -10); scene.add(pl1);
 const po1 = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 8), new THREE.MeshBasicMaterial({ color: 0xff4400 })); po1.position.copy(pl1.position); scene.add(po1);
@@ -1000,7 +1002,7 @@ function animate() {
             state.direction.z=-joystickVec.y;
             state.direction.x=joystickVec.x;
         }
-        state.direction.normalize();
+        if (state.direction.length()>0) state.direction.normalize();
         const moveX=(state.direction.x*Math.cos(yaw)+state.direction.z*Math.sin(yaw))*speed*delta;
         const moveZ=(-state.direction.x*Math.sin(yaw)+state.direction.z*Math.cos(yaw))*speed*delta;
         const newX=camera.position.x+moveX, newZ=camera.position.z+moveZ;
@@ -1045,7 +1047,21 @@ function animate() {
 }
 
 const clock=new THREE.Clock();
+
+// Error display for debugging
+window.onerror = function(msg, url, line) {
+    const el=document.createElement('div');
+    el.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:#ff4444;font-size:16px;background:rgba(0,0,0,0.9);padding:20px;border-radius:10px;z-index:999;max-width:80vw';
+    el.textContent='Error: '+msg+' (line '+line+')';
+    document.body.appendChild(el);
+};
+
 animate();
+window.addEventListener('resize', () => {
+    const w=window.innerWidth, h=window.innerHeight;
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+    renderer.setSize(w,h);
+});
 
 // Menu resume check
 console.log('Zombie Shooter Mobile loaded! Tap PLAY to start.');
