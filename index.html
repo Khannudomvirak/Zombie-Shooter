@@ -266,6 +266,8 @@ input[type="range"]::-moz-range-thumb {
 </div>
 
 <div id="damage-overlay"></div>
+<div id="hit-marker" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:11;opacity:0;font-size:24px;color:#fff;font-weight:bold;text-shadow:0 0 6px rgba(255,255,255,0.5);">✕</div>
+<div id="dmg-indicator" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9;opacity:0;background:radial-gradient(circle at 50% 50%, transparent 40%, rgba(255,0,0,0.15));"></div>
 
 <div id="game-over">
     <h1>GAME OVER</h1>
@@ -317,8 +319,20 @@ const state = {
 
 // ---- THREE.JS SETUP ----
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0a0a1a);
-scene.fog = new THREE.FogExp2(0x0a0a1a, 0.012);
+
+// Sky gradient
+const skyCanvas = document.createElement('canvas');
+skyCanvas.width = 1; skyCanvas.height = 128;
+const sctx = skyCanvas.getContext('2d');
+const grad = sctx.createLinearGradient(0, 0, 0, 128);
+grad.addColorStop(0, '#0a0a2a');
+grad.addColorStop(0.5, '#1a1a3a');
+grad.addColorStop(1, '#2a2a1a');
+sctx.fillStyle = grad;
+sctx.fillRect(0, 0, 1, 128);
+const skyTex = new THREE.CanvasTexture(skyCanvas);
+scene.background = skyTex;
+scene.fog = new THREE.FogExp2(0x0a0a1a, 0.008);
 
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 200);
 camera.position.set(0, 1.7, 0);
@@ -387,21 +401,29 @@ scene.add(pLightObj3);
 // ---- GROUND ----
 function createGroundTexture() {
     const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 512;
+    canvas.width = 1024;
+    canvas.height = 1024;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#1a3a1a';
-    ctx.fillRect(0, 0, 512, 512);
-    for (let i = 0; i < 3000; i++) {
-        const x = Math.random() * 512;
-        const y = Math.random() * 512;
-        const shade = Math.floor(60 + Math.random() * 80);
-        ctx.fillStyle = `rgb(${shade-30}, ${shade}, ${shade-40})`;
-        ctx.fillRect(x, y, 2, 4);
+    const baseLight = 60;
+    ctx.fillStyle = `rgb(20, ${baseLight}, 15)`;
+    ctx.fillRect(0, 0, 1024, 1024);
+    for (let i = 0; i < 12000; i++) {
+        const x = Math.random() * 1024;
+        const y = Math.random() * 1024;
+        const shade = Math.floor(baseLight - 15 + Math.random() * 40);
+        ctx.fillStyle = `rgb(${shade-40}, ${shade}, ${shade-50})`;
+        ctx.fillRect(x, y, 2 + Math.random() * 4, 2 + Math.random() * 2);
+    }
+    // Grid lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.02)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 1024; i += 32) {
+        ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 1024); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(1024, i); ctx.stroke();
     }
     const texture = new THREE.CanvasTexture(canvas);
     texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(40, 40);
+    texture.repeat.set(20, 20);
     return texture;
 }
 
@@ -431,6 +453,18 @@ function createBuilding(x, z, w, d, h, color) {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     scene.add(mesh);
+    
+    // Windows (emissive lights)
+    const winMat = new THREE.MeshBasicMaterial({ color: 0xffdd88, transparent: true, opacity: 0.3 });
+    for (let wy = 1; wy < h - 0.5; wy += 1.2) {
+        for (let wx = -w/2 + 0.5; wx < w/2 - 0.3; wx += 0.8) {
+            if (Math.random() < 0.6) {
+                const win = new THREE.Mesh(new THREE.PlaneGeometry(0.35, 0.5), winMat);
+                win.position.set(x + wx, wy, z + d/2 + 0.01);
+                scene.add(win);
+            }
+        }
+    }
     
     // Top edge
     const edgeMat = new THREE.MeshPhongMaterial({ color: 0x333344, roughness: 0.9 });
@@ -534,6 +568,42 @@ createTree(-14, 8);
 createTree(10, 12);
 createTree(-3, -15);
 createTree(18, -5);
+
+// Debris / small rocks
+function createDebris(x, z) {
+    const mat = new THREE.MeshPhongMaterial({ color: 0x555555, roughness: 0.9 });
+    const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.05 + Math.random() * 0.1), mat);
+    m.position.set(x, 0.05, z);
+    m.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+    scene.add(m);
+    return m;
+}
+for (let i = 0; i < 40; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const d = 5 + Math.random() * 20;
+    createDebris(Math.cos(a) * d, Math.sin(a) * d);
+}
+
+// Lamp posts (simple)
+function createLamp(x, z) {
+    const poleMat = new THREE.MeshPhongMaterial({ color: 0x333333, metalness: 0.3 });
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 2, 6), poleMat);
+    pole.position.set(x, 1, z);
+    pole.castShadow = true;
+    scene.add(pole);
+    const light = new THREE.PointLight(0xffdd88, 2, 8);
+    light.position.set(x, 2.2, z);
+    scene.add(light);
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffdd88 }));
+    bulb.position.set(x, 2.2, z);
+    scene.add(bulb);
+    obstacles.push(pole);
+}
+createLamp(-10, -5);
+createLamp(10, 5);
+createLamp(-5, 12);
+createLamp(8, -10);
+createLamp(-15, -2);
 
 // ---- STARS (skybox substitute) ----
 const starsGeo = new THREE.BufferGeometry();
@@ -732,7 +802,56 @@ camera.add(flash);
 const flashLight = new THREE.PointLight(0xffaa00, 0, 5);
 camera.add(flashLight);
 
-// ---- BULLET HOLE DECALS ----
+// ---- BLOOD PARTICLE SYSTEM ----
+const bloodParticles = [];
+function spawnBlood(pos, count) {
+    for (let i = 0; i < count; i++) {
+        const mat = new THREE.MeshBasicMaterial({
+            color: new THREE.Color().setHSL(0.02 + Math.random() * 0.04, 1, 0.25 + Math.random() * 0.25),
+            transparent: true, opacity: 0.8,
+        });
+        const size = 0.02 + Math.random() * 0.08;
+        const p = new THREE.Mesh(new THREE.SphereGeometry(size, 4, 4), mat);
+        p.position.copy(pos);
+        p.userData.vel = new THREE.Vector3(
+            (Math.random() - 0.5) * 3,
+            Math.random() * 3 + 1,
+            (Math.random() - 0.5) * 3
+        );
+        p.userData.life = 0.5 + Math.random() * 0.5;
+        p.userData.maxLife = p.userData.life;
+        p.renderOrder = 1002;
+        scene.add(p);
+        bloodParticles.push(p);
+    }
+}
+function updateBloodParticles(delta) {
+    for (let i = bloodParticles.length - 1; i >= 0; i--) {
+        const p = bloodParticles[i];
+        p.userData.life -= delta;
+        if (p.userData.life <= 0) { scene.remove(p); bloodParticles.splice(i, 1); continue; }
+        p.position.add(p.userData.vel.clone().multiplyScalar(delta));
+        p.userData.vel.y -= delta * 8;
+        p.material.opacity = (p.userData.life / p.userData.maxLife) * 0.8;
+        const s = 1 + (1 - p.userData.life / p.userData.maxLife) * 2;
+        p.scale.set(s, s, s);
+    }
+}
+
+// ---- SCREEN SHAKE ----
+let shakeAmount = 0;
+let shakeTimer = 0;
+
+function applyShake(intensity, duration) { shakeAmount = Math.max(shakeAmount, intensity); shakeTimer = Math.max(shakeTimer, duration); }
+
+function updateShake(delta) {
+    if (shakeTimer > 0) {
+        shakeTimer -= delta;
+        camera.position.x += (Math.random() - 0.5) * shakeAmount;
+        camera.position.y += (Math.random() - 0.5) * shakeAmount * 0.5;
+        if (shakeTimer <= 0) { shakeAmount = 0; shakeTimer = 0; }
+    }
+}
 const bulletHoles = [];
 
 function createBulletHole(position, normal) {
@@ -899,6 +1018,11 @@ class Zombie {
         this.maxHealth = s.health;
         this.health = s.health;
         this.speed = s.speed;
+        this._origSpeed = s.speed;
+        this._stuckTimer = 0;
+        this._lastPos = new THREE.Vector3();
+        this._flankAngle = (Math.random() - 0.5) * 0.6;
+        this._steerDir = 0;
         const scale = s.scale;
 
         this.group = new THREE.Group();
@@ -1087,11 +1211,24 @@ class Zombie {
         this.healthBar.scale.x = pct;
         this.healthBar.position.x = -0.24 * (1 - pct);
         
+        // Health bar color
+        this.healthBar.material.color.setHSL((pct * 0.3), 1, 0.5);
+        
         if (this.health <= 0) {
             this.die();
             return true;
         }
         return false;
+    }
+    
+    stagger() {
+        this.speed *= 0.2;
+        clearTimeout(this._staggerTimer);
+        this._staggerTimer = setTimeout(() => {
+            if (this.alive) {
+                this.speed = this._origSpeed;
+            }
+        }, 200);
     }
     
     die() {
@@ -1101,9 +1238,11 @@ class Zombie {
         state.kills++;
         state.score += 100;
         
-        // Drop system: pistol, smg, shotgun, sniper ammo or health
-        // Random per-zombie drop chances within ranges: pistol 20-40%, SMG 20-40%, shotgun 10-15%, sniper 10-15%
-        // Health fixed 20%; weapons fill remaining 80% with per-kill randomized ratios within their ranges
+        // Blood burst
+        spawnBlood(this.group.position.clone().add(new THREE.Vector3(0, 1, 0)), 20);
+        if (this.type === 'fat' || this.type === 'tank') spawnBlood(this.group.position.clone().add(new THREE.Vector3(0, 0.5, 0)), 15);
+        
+        // Drop system
         const pW = 0.20 + Math.random() * 0.20;
         const sW = 0.20 + Math.random() * 0.20;
         const sgW = 0.10 + Math.random() * 0.05;
@@ -1114,35 +1253,40 @@ class Zombie {
         const dropItem = roll < pW * scale ? 'p_ammo' : roll < (pW + sW) * scale ? 's_ammo' : roll < (pW + sW + sgW) * scale ? 'sg_ammo' : roll < (pW + sW + sgW + srW) * scale ? 'sr_ammo' : 'health';
         spawnPickup(this.group.position, dropItem);
         
-        // Blood effect
+        // Blood splats on ground
         const bloodMat = new THREE.MeshBasicMaterial({
             color: 0x880000,
             transparent: true,
             opacity: 0.6,
         });
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < 8; i++) {
             const splat = new THREE.Mesh(
-                new THREE.CircleGeometry(0.05 + Math.random() * 0.08, 5),
+                new THREE.CircleGeometry(0.05 + Math.random() * 0.12, 5),
                 bloodMat
             );
             splat.position.copy(this.group.position);
+            splat.position.x += (Math.random() - 0.5) * 0.8;
+            splat.position.z += (Math.random() - 0.5) * 0.8;
             splat.position.y = 0.01;
             splat.rotation.x = -Math.PI / 2;
             splat.rotation.z = Math.random() * Math.PI * 2;
             scene.add(splat);
-            setTimeout(() => scene.remove(splat), 3000);
+            setTimeout(() => scene.remove(splat), 5000);
         }
         
         // Remove health bar
         this.group.remove(this.healthBar);
         this.group.remove(this.healthBarBg);
+        
+        // Death spin direction
+        this._deathSpinDir = Math.random() > 0.5 ? 1 : -1;
     }
     
     update(delta, playerPos) {
         if (!this.alive) {
             this.dyingTimer -= delta;
-            // Fall over
-            this.group.rotation.x += delta * 3;
+            this.group.rotation.x += delta * 3 * this._deathSpinDir;
+            this.group.rotation.z += delta * this._deathSpinDir;
             this.group.position.y -= delta * 0.5;
             if (this.dyingTimer <= 0) {
                 scene.remove(this.group);
@@ -1160,15 +1304,91 @@ class Zombie {
         const dist = Math.sqrt(dx * dx + dz * dz);
         
         if (dist > 1.2) {
-            // Move towards player
-            const moveX = (dx / dist) * this.speed * delta;
-            const moveZ = (dz / dist) * this.speed * delta;
-            this.group.position.x += moveX;
-            this.group.position.z += moveZ;
+            // Stuck detection
+            const moved = this.group.position.distanceTo(this._lastPos);
+            this._lastPos.copy(this.group.position);
+            if (moved < 0.02) {
+                this._stuckTimer += delta;
+                if (this._stuckTimer > 0.8) {
+                    this._steerDir = Math.random() > 0.5 ? 1 : -1;
+                    this._stuckTimer = 0;
+                }
+            } else {
+                this._stuckTimer = 0;
+                this._steerDir *= 0.95;
+            }
+            
+            // Speed ramp: faster when close
+            const closeMult = dist < 5 ? 1 + (1 - dist / 5) * 0.5 : 1;
+            const currentSpeed = this.speed * closeMult;
+            
+            // Base direction toward player
+            let targetAngle = Math.atan2(dx, dz);
+            // Apply flank offset to spread zombies
+            targetAngle += this._flankAngle;
+            // Apply stuck steering
+            targetAngle += this._steerDir * 0.5;
+            
+            // Obstacle sensor: check 3 forward directions
+            const zHalf = (this.type === 'fat' || this.type === 'tank') ? 0.4 : 0.3;
+            const senseDist = 1.2;
+            const senses = [
+                { a: 0, x: 0, z: 1 },
+                { a: 0.5, x: 0.5, z: 0.85 },
+                { a: -0.5, x: -0.5, z: 0.85 },
+            ];
+            let bestAngle = targetAngle;
+            let bestClear = false;
+            for (const s of senses) {
+                const testA = targetAngle + s.a;
+                const testX = Math.sin(testA) * senseDist;
+                const testZ = Math.cos(testA) * senseDist;
+                const tp = new THREE.Vector3(this.group.position.x + testX, 0, this.group.position.z + testZ);
+                const pb = new THREE.Box3(
+                    new THREE.Vector3(tp.x - zHalf, 0, tp.z - zHalf),
+                    new THREE.Vector3(tp.x + zHalf, 2, tp.z + zHalf)
+                );
+                let blocked = false;
+                for (const obs of obstacles) {
+                    if (new THREE.Box3().setFromObject(obs).intersectsBox(pb)) { blocked = true; break; }
+                }
+                if (!blocked) { bestAngle = testA; bestClear = true; break; }
+            }
+            if (!bestClear) {
+                // All blocked — try wider angles
+                for (const s of [{a:1},{a:-1},{a:1.5},{a:-1.5}]) {
+                    const testA = targetAngle + s.a;
+                    const testX = Math.sin(testA) * senseDist * 0.6;
+                    const testZ = Math.cos(testA) * senseDist * 0.6;
+                    const tp = new THREE.Vector3(this.group.position.x + testX, 0, this.group.position.z + testZ);
+                    const pb = new THREE.Box3(
+                        new THREE.Vector3(tp.x - zHalf, 0, tp.z - zHalf),
+                        new THREE.Vector3(tp.x + zHalf, 2, tp.z + zHalf)
+                    );
+                    let blocked = false;
+                    for (const obs of obstacles) {
+                        if (new THREE.Box3().setFromObject(obs).intersectsBox(pb)) { blocked = true; break; }
+                    }
+                    if (!blocked) { bestAngle = testA; break; }
+                }
+            }
+            
+            const moveX = Math.sin(bestAngle) * currentSpeed * delta;
+            const moveZ = Math.cos(bestAngle) * currentSpeed * delta;
+            
+            // Collision check movement with slide
+            function zCheckPos(p) {
+                const pb = new THREE.Box3(new THREE.Vector3(p.x - zHalf, 0, p.z - zHalf), new THREE.Vector3(p.x + zHalf, 2, p.z + zHalf));
+                for (const obs of obstacles) { if (new THREE.Box3().setFromObject(obs).intersectsBox(pb)) return true; }
+                return false;
+            }
+            const nx = new THREE.Vector3(this.group.position.x + moveX, 0, this.group.position.z);
+            if (!zCheckPos(nx)) this.group.position.x += moveX;
+            const nz = new THREE.Vector3(this.group.position.x, 0, this.group.position.z + moveZ);
+            if (!zCheckPos(nz)) this.group.position.z += moveZ;
             
             // Face player (smooth rotation)
-            const targetAngle = Math.atan2(dx, dz);
-            let diff = targetAngle - this.group.rotation.y;
+            let diff = targetAngle - this._flankAngle - this._steerDir * 0.5 - this.group.rotation.y;
             while (diff > Math.PI) diff -= Math.PI * 2;
             while (diff < -Math.PI) diff += Math.PI * 2;
             this.group.rotation.y += diff * delta * 5;
@@ -1179,6 +1399,10 @@ class Zombie {
             this.rightArm.rotation.x = -swing;
             this.leftLeg.rotation.x = -swing * 0.5;
             this.rightLeg.rotation.x = swing * 0.5;
+            
+            // Torso lean
+            this.torso.rotation.z = Math.sin(this.animTime * 2) * 0.03;
+            this.head.rotation.z = -this.torso.rotation.z * 0.5;
             
             // Bob up and down
             this.group.position.y = Math.abs(Math.sin(this.animTime)) * 0.05;
@@ -1201,7 +1425,18 @@ class Zombie {
                 if (!state.gameOver) {
                     state.health = Math.max(0, state.health - difficultyConfig[difficulty].zombieDamage);
                     state.lastDamageTime = Date.now();
+                    applyShake(0.08, 0.1);
                     document.getElementById('damage-overlay').style.opacity = '1';
+                    
+                    // Damage direction indicator
+                    const dir = new THREE.Vector3().subVectors(this.group.position, playerPos);
+                    const angle = Math.atan2(dir.x, dir.z) - camera.rotation.y;
+                    const ind = document.getElementById('dmg-indicator');
+                    ind.style.opacity = '0.6';
+                    ind.style.background = `radial-gradient(circle at ${50 + 40 * Math.sin(angle)}% ${50 - 40 * Math.cos(angle)}%, transparent 30%, rgba(255,0,0,0.25))`;
+                    clearTimeout(ind._hide);
+                    ind._hide = setTimeout(() => { ind.style.opacity = '0'; }, 600);
+                    
                     setTimeout(() => {
                         document.getElementById('damage-overlay').style.opacity = '0';
                     }, 200);
@@ -1214,8 +1449,8 @@ class Zombie {
             }
         }
         
-        // Random stagger movement
-        this.group.position.x += Math.sin(this.animTime * 0.7) * delta * 0.2;
+        // Slight natural wobble
+        this.group.position.x += Math.sin(this.animTime * 0.7) * delta * 0.05;
     }
 }
 
@@ -1264,16 +1499,36 @@ function firePellet(spread) {
             if (z.group.children.includes(hitMesh)) { hitZombie = z; break; }
         }
         if (hitZombie) {
-            const killed = hitZombie.takeDamage(getW().damage);
+            const isHeadshot = hitMesh === hitZombie.head;
+            const dmg = getW().damage * (isHeadshot ? 3 : 1);
+            spawnBlood(hits[0].point, isHeadshot ? 12 : 5);
+            const killed = hitZombie.takeDamage(dmg);
             if (killed) {
                 const typeNames = { normal: 'Zombie', fat: 'Fat Zombie', tall: 'Tall Zombie', runner: 'Runner', tank: 'Tank' };
-                addKillFeedMessage(typeNames[hitZombie.type || 'normal']);
+                addKillFeedMessage(typeNames[hitZombie.type || 'normal'] + (isHeadshot ? ' (HEADSHOT)' : ''));
                 if (state.zombiesAlive <= 0 && state.zombiesRemaining <= 0) nextWave();
+            } else {
+                hitZombie.stagger();
+                if (isHeadshot) {
+                    applyShake(0.05, 0.1);
+                    document.getElementById('hit-marker').textContent = '✕';
+                    document.getElementById('hit-marker').style.color = '#ff4444';
+                    document.getElementById('hit-marker').style.fontSize = '28px';
+                }
+            }
+            if (!killed) {
+                const marker = document.getElementById('hit-marker');
+                marker.style.opacity = '1';
+                clearTimeout(marker._hide);
+                marker._hide = setTimeout(() => { marker.style.opacity = '0'; }, 150);
+                if (isHeadshot) { marker.style.color = '#ffaa00'; marker.textContent = '✕'; }
+                else { marker.style.color = '#fff'; marker.textContent = '✕'; }
             }
             updateHUD();
             const point = hits[0].point;
             const normal = hits[0].face.normal.clone();
             createBulletHole(point, normal);
+            applyShake(isHeadshot ? 0.03 : 0.01, 0.05);
             return true;
         }
     }
@@ -1309,11 +1564,14 @@ function shoot() {
     flashLight.intensity = 8;
     setTimeout(() => { flashMat.opacity = 0; flashLight.intensity = 0; }, 50);
 
-    // Recoil
+    // Recoil + screen shake
     const model = w.model;
     model.position.z = w.recoilZ;
     model.rotation.x = w.recoilX;
     setTimeout(() => { model.position.z = w.restZ; model.rotation.x = 0; }, 80);
+    if (w.id === 'shotgun') applyShake(0.12, 0.15);
+    else if (w.id === 'sniper') applyShake(0.15, 0.2);
+    else applyShake(0.04, 0.06);
 
     // Sound
     try {
@@ -1514,6 +1772,28 @@ let isLocked = false;
 let yaw = 0;
 let pitch = 0;
 const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+
+// Ambient firefly particles
+const particleCount = 200;
+const particleGeo = new THREE.BufferGeometry();
+const particlePos = new Float32Array(particleCount * 3);
+const particleSpeeds = [];
+for (let i = 0; i < particleCount; i++) {
+    particlePos[i*3] = (Math.random() - 0.5) * 60;
+    particlePos[i*3+1] = Math.random() * 3 + 0.5;
+    particlePos[i*3+2] = (Math.random() - 0.5) * 60;
+    particleSpeeds.push({ x: (Math.random() - 0.5) * 0.5, y: (Math.random() - 0.5) * 0.2, z: (Math.random() - 0.5) * 0.5 });
+}
+particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePos, 3));
+const particleMat = new THREE.PointsMaterial({
+    color: 0xaaffaa,
+    size: 0.05,
+    transparent: true,
+    opacity: 0.4,
+    blending: THREE.AdditiveBlending,
+});
+const particles = new THREE.Points(particleGeo, particleMat);
+scene.add(particles);
 
 const blocker = document.getElementById('blocker');
 
@@ -1732,35 +2012,59 @@ function animate() {
         state.direction.normalize();
         
         const moveAmount = state.direction.clone().multiplyScalar(speed * delta);
-        camera.position.add(moveAmount);
         
-        // Collision with obstacles
-        for (const obs of obstacles) {
-            const box = new THREE.Box3().setFromObject(obs);
-            const playerBox = new THREE.Box3(
-                new THREE.Vector3(camera.position.x - 0.3, 0, camera.position.z - 0.3),
-                new THREE.Vector3(camera.position.x + 0.3, 2, camera.position.z + 0.3)
+        // Collision with obstacles (slide along walls)
+        const playerHalf = 0.3;
+        function testCollision(pos) {
+            const pb = new THREE.Box3(
+                new THREE.Vector3(pos.x - playerHalf, 0, pos.z - playerHalf),
+                new THREE.Vector3(pos.x + playerHalf, 2, pos.z + playerHalf)
             );
-            if (box.intersectsBox(playerBox)) {
-                camera.position.sub(moveAmount);
-                break;
+            for (const obs of obstacles) {
+                if (new THREE.Box3().setFromObject(obs).intersectsBox(pb)) return true;
             }
+            return false;
         }
+        // Try X movement independently
+        const testX = new THREE.Vector3(camera.position.x + moveAmount.x, camera.position.y, camera.position.z);
+        if (!testCollision(testX)) camera.position.x = testX.x;
+        // Try Z movement independently
+        const testZ = new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z + moveAmount.z);
+        if (!testCollision(testZ)) camera.position.z = testZ.z;
         
         // Keep player within bounds
         const bound = 45;
         camera.position.x = Math.max(-bound, Math.min(bound, camera.position.x));
         camera.position.z = Math.max(-bound, Math.min(bound, camera.position.z));
         
-        // Weapon bob
+        // Weapon bob + idle sway
         const wModel = getW().model;
+        const idleSway = Math.sin(Date.now() * 0.001) * 0.002;
+        wModel.rotation.z += idleSway * 0.2;
         if (state.direction.length() > 0) {
-            const bobSpeed = keys['shift'] ? 12 : 8;
-            const bobAmount = keys['shift'] ? 0.01 : 0.005;
+            const bobSpeed = keys['shift'] ? 14 : 9;
+            const bobAmount = keys['shift'] ? 0.015 : 0.008;
             const bob = Math.sin(Date.now() * 0.005 * bobSpeed) * bobAmount;
             wModel.position.y += bob * 0.3;
+            // Footstep sound
+            if (!state._stepTimer || state._stepTimer <= 0) {
+                try {
+                    const a = new (window.AudioContext || window.webkitAudioContext)();
+                    const c = a.createOscillator(); const g = a.createGain();
+                    c.connect(g); g.connect(a.destination);
+                    c.frequency.setValueAtTime(200, a.currentTime);
+                    c.frequency.exponentialRampToValueAtTime(80, a.currentTime + 0.05);
+                    g.gain.setValueAtTime(0.06 * settings.volume / 10, a.currentTime);
+                    g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.08);
+                    c.type = 'sine';
+                    c.start(); c.stop(a.currentTime + 0.08);
+                } catch(e) {}
+                state._stepTimer = keys['shift'] ? 0.28 : 0.42;
+            }
+            state._stepTimer -= delta;
         } else {
             wModel.position.y += (0 - wModel.position.y) * 0.05;
+            state._stepTimer = 0;
         }
         
         // Fire cooldown
@@ -1771,6 +2075,11 @@ function animate() {
         for (const z of zombies) {
             z.update(delta, camera.position);
         }
+        
+        // Blood particles
+        updateBloodParticles(delta);
+        // Screen shake
+        updateShake(delta);
         
         // Check health pickups
         checkPickups(camera.position);
@@ -1788,6 +2097,23 @@ function animate() {
     // Star slow rotation
     stars.rotation.y += delta * 0.005;
     
+    // Animate fireflies
+    const posArr = particles.geometry.attributes.position.array;
+    for (let i = 0; i < particleCount; i++) {
+        posArr[i*3] += particleSpeeds[i].x * delta;
+        posArr[i*3+1] += Math.sin(Date.now() * 0.001 + i) * delta * 0.3;
+        posArr[i*3+2] += particleSpeeds[i].z * delta;
+        if (Math.abs(posArr[i*3]) > 30) particleSpeeds[i].x *= -1;
+        if (Math.abs(posArr[i*3+1]) > 3) { particleSpeeds[i].y *= -1; posArr[i*3+1] = Math.random() * 2 + 0.5; }
+        if (Math.abs(posArr[i*3+2]) > 30) particleSpeeds[i].z *= -1;
+    }
+    particles.geometry.attributes.position.needsUpdate = true;
+    
+    // Flicker point lights
+    pointLight1.intensity = 2.5 + Math.sin(Date.now() * 0.005) * 0.5;
+    pointLight2.intensity = 2.5 + Math.sin(Date.now() * 0.004 + 1) * 0.5;
+    pointLight3.intensity = 2.5 + Math.sin(Date.now() * 0.006 + 2) * 0.5;
+    
     // Animate health pickups
     for (const p of pickups) {
         p.rotation.y += delta * 2;
@@ -1800,25 +2126,6 @@ function animate() {
 // ---- INIT ----
 updateHUD();
 animate();
-
-// Spawn some ambient particles (dust/fireflies)
-const particleCount = 100;
-const particleGeo = new THREE.BufferGeometry();
-const particlePos = new Float32Array(particleCount * 3);
-for (let i = 0; i < particleCount * 3; i++) {
-    particlePos[i] = (Math.random() - 0.5) * 60;
-}
-particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePos, 3));
-const particleMat = new THREE.PointsMaterial({
-    color: 0x88ff88,
-    size: 0.03,
-    transparent: true,
-    opacity: 0.3,
-    blending: THREE.AdditiveBlending,
-});
-const particles = new THREE.Points(particleGeo, particleMat);
-particles.position.y = 1;
-scene.add(particles);
 
 // Ground mist
 const mistMat = new THREE.MeshPhongMaterial({
