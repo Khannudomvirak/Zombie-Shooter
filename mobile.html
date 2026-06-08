@@ -757,7 +757,7 @@ function shoot() {
     w.currentAmmo--; fireCooldown=w.fireRate;
     flashMat.opacity=1; flashLight.intensity=8; setTimeout(()=>{flashMat.opacity=0;flashLight.intensity=0;},50);
     const model=w.model; model.position.z=w.recoilZ; model.rotation.x=w.recoilX; setTimeout(()=>{model.position.z=w.restZ;model.rotation.x=0;},80);
-    try { const a=new(window.AudioContext||window.webkitAudioContext)(); const c=a.createOscillator(); const g=a.createGain(); c.connect(g); g.connect(a.destination); c.frequency.setValueAtTime(w.sound.freq1,a.currentTime); c.frequency.exponentialRampToValueAtTime(w.sound.freq2,a.currentTime+w.sound.dur); g.gain.setValueAtTime(w.sound.vol*settings.volume/10,a.currentTime); g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+w.sound.dur); c.start(); c.stop(a.currentTime+w.sound.dur); } catch(e){}
+    try { if(w.id==='shotgun'){new Audio('shotgun.mp3').play().catch(()=>{});} else { const a=new(window.AudioContext||window.webkitAudioContext)(); const c=a.createOscillator(); const g=a.createGain(); c.connect(g); g.connect(a.destination); c.frequency.setValueAtTime(w.sound.freq1,a.currentTime); c.frequency.exponentialRampToValueAtTime(w.sound.freq2,a.currentTime+w.sound.dur); g.gain.setValueAtTime(w.sound.vol*settings.volume/10,a.currentTime); g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+w.sound.dur); c.start(); c.stop(a.currentTime+w.sound.dur); } } catch(e){}
     let hitSomething=false;
     for(let i=0;i<w.pellets;i++) { if(firePellet(w.spread))hitSomething=true; fireEnvCheck(w.spread); }
     for(let i=0;i<Math.min(w.pellets,3);i++) {
@@ -776,9 +776,11 @@ function reload() {
     const w=getW();
     if (state.isReloading||w.currentAmmo>=w.maxAmmo||w.currentReserve<=0) return;
     state.isReloading=true;
+    try { const a=new(window.AudioContext||window.webkitAudioContext)(); const c=a.createOscillator(); const g=a.createGain(); c.connect(g); g.connect(a.destination); c.frequency.setValueAtTime(300,a.currentTime); c.frequency.setValueAtTime(500,a.currentTime+0.15); g.gain.setValueAtTime(0.15*settings.volume/10,a.currentTime); g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+0.3); c.start(); c.stop(a.currentTime+0.3); } catch(e){}
     if (w.userData&&w.userData.slide) { w.userData.slide.position.x=0.06; }
     setTimeout(() => {
         const need=w.maxAmmo-w.currentAmmo; const from=Math.min(need,w.currentReserve);
+        try { if(w.id==='shotgun'){const a=new Audio('shotgun.mp3');a.volume=settings.volume/10;a.play().catch(()=>{});} } catch(e){}
         w.currentAmmo+=from; w.currentReserve-=from;
         state.isReloading=false;
         if (w.userData&&w.userData.slide) { w.userData.slide.position.x=0; }

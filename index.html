@@ -1317,14 +1317,20 @@ function shoot() {
 
     // Sound
     try {
-        const a = new (window.AudioContext || window.webkitAudioContext)();
-        const c = a.createOscillator(); const g = a.createGain();
-        c.connect(g); g.connect(a.destination);
-        c.frequency.setValueAtTime(w.sound.freq1, a.currentTime);
-        c.frequency.exponentialRampToValueAtTime(w.sound.freq2, a.currentTime + w.sound.dur);
-        g.gain.setValueAtTime(w.sound.vol * settings.volume / 10, a.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + w.sound.dur);
-        c.start(); c.stop(a.currentTime + w.sound.dur);
+        if (w.id === 'shotgun') {
+            const audio = new Audio('shotgun.mp3');
+            audio.volume = settings.volume / 10;
+            audio.play().catch(()=>{});
+        } else {
+            const a = new (window.AudioContext || window.webkitAudioContext)();
+            const c = a.createOscillator(); const g = a.createGain();
+            c.connect(g); g.connect(a.destination);
+            c.frequency.setValueAtTime(w.sound.freq1, a.currentTime);
+            c.frequency.exponentialRampToValueAtTime(w.sound.freq2, a.currentTime + w.sound.dur);
+            g.gain.setValueAtTime(w.sound.vol * settings.volume / 10, a.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + w.sound.dur);
+            c.start(); c.stop(a.currentTime + w.sound.dur);
+        }
     } catch(e) {}
 
     // Fire pellets
@@ -1393,15 +1399,21 @@ function reload() {
         model.position.set(startPos.x, startPos.y + 0.1, startPos.z);
         model.rotation.set(0, 0, 0.05);
         try {
-            const a = new (window.AudioContext || window.webkitAudioContext)();
-            const c = a.createOscillator(); const g = a.createGain();
-            c.connect(g); g.connect(a.destination);
-            c.frequency.setValueAtTime(800, a.currentTime);
-            c.frequency.exponentialRampToValueAtTime(300, a.currentTime + 0.12);
-            g.gain.setValueAtTime(0.25 * settings.volume / 10, a.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.15);
-            c.type = 'sawtooth';
-            c.start(); c.stop(a.currentTime + 0.15);
+            if (w.id === 'shotgun') {
+                const a = new Audio('shotgun.mp3');
+                a.volume = settings.volume / 10;
+                a.play().catch(()=>{});
+            } else {
+                const a = new (window.AudioContext || window.webkitAudioContext)();
+                const c = a.createOscillator(); const g = a.createGain();
+                c.connect(g); g.connect(a.destination);
+                c.frequency.setValueAtTime(800, a.currentTime);
+                c.frequency.exponentialRampToValueAtTime(300, a.currentTime + 0.12);
+                g.gain.setValueAtTime(0.25 * settings.volume / 10, a.currentTime);
+                g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.15);
+                c.type = 'sawtooth';
+                c.start(); c.stop(a.currentTime + 0.15);
+            }
         } catch(e) {}
     }, rt * 0.5);
 
