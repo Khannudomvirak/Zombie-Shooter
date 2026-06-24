@@ -266,6 +266,14 @@ input[type="range"]::-moz-range-thumb {
 </div>
 
 <div id="damage-overlay"></div>
+<div id="scope-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:12;display:none;">
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:80vmin;height:80vmin;border-radius:50%;border:2px solid rgba(0,0,0,0.9);box-shadow:0 0 0 9999px rgba(0,0,0,0.85);"></div>
+    <div style="position:absolute;top:50%;left:0;width:100%;height:1px;background:rgba(0,0,0,0.9);transform:translateY(-50%);"></div>
+    <div style="position:absolute;top:0;left:50%;width:1px;height:100%;background:rgba(0,0,0,0.9);transform:translateX(-50%);"></div>
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:4px;height:4px;border-radius:50%;background:#ff0000;"></div>
+    <div style="position:absolute;top:50%;left:50%;width:30%;height:1px;background:rgba(255,0,0,0.4);transform:translate(-50%,-50%);"></div>
+    <div style="position:absolute;top:50%;left:50%;height:30%;width:1px;background:rgba(255,0,0,0.4);transform:translate(-50%,-50%);"></div>
+</div>
 <div id="hit-marker" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:11;opacity:0;font-size:24px;color:#fff;font-weight:bold;text-shadow:0 0 6px rgba(255,255,255,0.5);">✕</div>
 <div id="dmg-indicator" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9;opacity:0;background:radial-gradient(circle at 50% 50%, transparent 40%, rgba(255,0,0,0.15));"></div>
 
@@ -310,6 +318,7 @@ const state = {
     gameOver: false,
 
     isReloading: false,
+    isZoomed: false,
     fireCooldown: 0,
     lastDamageTime: 0,
     sprinting: false,
@@ -757,6 +766,7 @@ weapons.push({
     sound: { freq1: 400, freq2: 100, dur: 0.15, vol: 0.4 },
     recoilZ: -0.7, recoilX: 0.12, restZ: -0.7,
 });
+initWeaponAmmo(weapons[weapons.length-1]);
 
 // Add all weapon models to camera, hide all but first
 weapons.forEach((w, i) => {
@@ -770,7 +780,7 @@ function buildWeaponStats() {
     const wDefs = [
         { name: 'PISTOL', dmg: 1, rof: '0.15s', mag: 12, spread: 0, pellets: 1,
           dmgLvl: 2, rofLvl: 3, magLvl: 3, spreadLvl: 1 },
-        { name: 'SMG', dmg: 0.6, rof: '0.07s', mag: 30, spread: 0.04, pellets: 1,
+        { name: 'SMG', dmg: 0.6, rof: '0.07s', mag: 25, spread: 0.04, pellets: 1,
           dmgLvl: 1, rofLvl: 5, magLvl: 5, spreadLvl: 3 },
         { name: 'SHOTGUN', dmg: 2, rof: '0.5s', mag: 6, spread: 0.08, pellets: 3,
           dmgLvl: 3, rofLvl: 2, magLvl: 2, spreadLvl: 5 },
@@ -852,6 +862,7 @@ function updateShake(delta) {
         if (shakeTimer <= 0) { shakeAmount = 0; shakeTimer = 0; }
     }
 }
+// ---- BULLET HOLES ----
 const bulletHoles = [];
 
 function createBulletHole(position, normal) {
@@ -1020,6 +1031,7 @@ class Zombie {
         this.speed = s.speed;
         this._origSpeed = s.speed;
         this._stuckTimer = 0;
+        this._totalStuckTime = 0;
         this._lastPos = new THREE.Vector3();
         this._flankAngle = (Math.random() - 0.5) * 0.6;
         this._steerDir = 0;
@@ -1309,12 +1321,21 @@ class Zombie {
             this._lastPos.copy(this.group.position);
             if (moved < 0.02) {
                 this._stuckTimer += delta;
+                this._totalStuckTime += delta;
                 if (this._stuckTimer > 0.8) {
                     this._steerDir = Math.random() > 0.5 ? 1 : -1;
                     this._stuckTimer = 0;
                 }
+                if (this._totalStuckTime > 3) {
+                    // Teleport closer to player if stuck too long
+                    const a = Math.random() * Math.PI * 2;
+                    this.group.position.set(playerPos.x + Math.cos(a) * 3, 0, playerPos.z + Math.sin(a) * 3);
+                    this._totalStuckTime = 0;
+                    this._stuckTimer = 0;
+                }
             } else {
                 this._stuckTimer = 0;
+                this._totalStuckTime = 0;
                 this._steerDir *= 0.95;
             }
             
@@ -1458,10 +1479,11 @@ function getW() { return weapons[currentWeapon]; }
 
 function switchWeapon(idx) {
     if (idx === currentWeapon || state.isReloading) return;
+    if (state.isZoomed) toggleZoom();
     weapons[currentWeapon].model.visible = false;
     currentWeapon = idx;
     const w = getW();
-    w.model.visible = true;
+    w.model.visible = !state.isZoomed;
     state.isReloading = false;
     updateHUD();
     // Weapon switch notification
@@ -1760,6 +1782,7 @@ function updateHUD() {
 function gameOver() {
     state.gameOver = true;
     state.gameRunning = false;
+    if (state.isZoomed) { state.isZoomed = false; document.getElementById('scope-overlay').style.display = 'none'; document.getElementById('crosshair').style.display = 'block'; }
     document.getElementById('game-over').style.display = 'flex';
     document.getElementById('final-score').textContent = state.kills;
     document.getElementById('final-wave').textContent = state.wave;
@@ -1881,13 +1904,14 @@ document.addEventListener('keydown', (e) => {
     keys[e.key.toLowerCase()] = true;
     if (e.key === 'Escape') {
         if (state.gameRunning && isLocked) {
+            if (state.isZoomed) toggleZoom();
             document.exitPointerLock();
         } else if (!state.gameOver && !state.gameRunning) {
             // On menu, close any open subs
         }
         return;
     }
-    if (e.key.toLowerCase() === 'r' && isLocked) reload();
+    if (e.key.toLowerCase() === 'r' && isLocked) { if (state.isZoomed) toggleZoom(); reload(); }
     const key = parseInt(e.key);
     if (key >= 1 && key <= 4 && isLocked && state.gameRunning) {
         switchWeapon(key - 1);
@@ -1904,16 +1928,34 @@ document.addEventListener('keyup', (e) => {
     keys[e.key.toLowerCase()] = false;
 });
 
+// Zoom function
+function toggleZoom() {
+    if (getW().id === 'sniper' && isLocked && state.gameRunning && !state.gameOver && !state.isReloading) {
+        state.isZoomed = !state.isZoomed;
+        document.getElementById('scope-overlay').style.display = state.isZoomed ? 'block' : 'none';
+        if (state.isZoomed) {
+            getW().model.visible = false;
+            document.getElementById('crosshair').style.display = 'none';
+        } else {
+            getW().model.visible = true;
+            document.getElementById('crosshair').style.display = 'block';
+        }
+    }
+}
+
 // Mouse click to shoot
 let mouseHeld = false;
 
 document.addEventListener('mousedown', (e) => {
     if (e.button === 0 && isLocked) { mouseHeld = true; shoot(); }
+    if (e.button === 2 && isLocked) { toggleZoom(); }
 });
 
 document.addEventListener('mouseup', (e) => {
     if (e.button === 0) mouseHeld = false;
 });
+
+document.addEventListener('contextmenu', (e) => e.preventDefault());
 
 // Auto-fire in game loop
 let autoTimer = 0;
@@ -2084,12 +2126,15 @@ function animate() {
         // Check health pickups
         checkPickups(camera.position);
         
-        // Sprint FOV
+        // Sprint FOV / Zoom FOV
         const baseFov = settings.fov;
-        if (keys['shift'] && (keys['w'] || keys['s'])) {
-            camera.fov += (baseFov + 10 - camera.fov) * 0.05;
+        const targetFov = state.isZoomed ? Math.max(10, baseFov / 4) : baseFov;
+        if (state.isZoomed) {
+            camera.fov = targetFov;
+        } else if (keys['shift'] && (keys['w'] || keys['s'])) {
+            camera.fov += (targetFov + 10 - camera.fov) * 0.05;
         } else {
-            camera.fov += (baseFov - camera.fov) * 0.05;
+            camera.fov += (targetFov - camera.fov) * 0.05;
         }
         camera.updateProjectionMatrix();
     }
